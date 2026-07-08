@@ -1,0 +1,929 @@
+/*
+Theme Name: Shomart
+Description: Mobile-first Flipkart-style WooCommerce theme for Ladakh.
+Author: You
+Version: 2.0.0
+Requires PHP: 7.4
+Text Domain: shomart
+*/
+
+/* ============ ROOT VARIABLES ============ */
+:root {
+    --blue: #2874f0;
+    --yellow: #ffc200;
+    --grey-bg: #f1f2f4;
+    --text-dark: #212121;
+    --text-mid: #333;
+    --text-light: #878787;
+    --white: #ffffff;
+    --border: #e5e7eb;
+}
+
+/* ============ BASE ============ */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    color: var(--text-dark);
+    background: var(--grey-bg);
+    line-height: 1.5;
+    max-width: 480px;
+    margin: 0 auto;
+    position: relative;
+    -webkit-font-smoothing: antialiased;
+}
+
+a { text-decoration: none; color: inherit; }
+img { max-width: 100%; height: auto; display: block; }
+ul { list-style: none; }
+
+.container {
+    width: 100%;
+    padding: 0 12px;
+}
+
+/* ============ HEADER (NOT sticky - scrolls away) ============ */
+.shomart-top-header {
+    position: relative;
+    z-index: 1000;
+    background: var(--white);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.header-top-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+}
+
+
+
+/* Logo Area (shows logo image on home, home button on other pages) */
+.header-logo-area {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.image-logo {
+    max-height: 34px;
+    display: none;
+}
+
+.home-page .image-logo { display: block; }
+
+/* Home button (shows on non-home pages instead of logo) */
+.home-btn {
+    display: none;
+    align-items: center;
+    gap: 4px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--blue);
+}
+
+body:not(.home-page) .home-btn { display: flex; }
+
+/* Search */
+.search-wrap {
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.search-form {
+    display: flex;
+    align-items: center;
+    background: var(--grey-bg);
+    border-radius: 6px;
+    padding: 6px 10px;
+}
+
+.search-form input[type="search"] {
+    border: none;
+    background: none;
+    outline: none;
+    width: 100%;
+    font-size: 13px;
+    color: var(--text-mid);
+}
+
+/* Cart Icon */
+.cart-icon-link {
+    font-size: 20px;
+    position: relative;
+    color: var(--text-dark);
+    flex-shrink: 0;
+}
+
+.cart-count {
+    position: absolute;
+    top: -6px;
+    right: -8px;
+    background: var(--blue);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    border-radius: 50%;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Location Bar */
+.location-bar {
+    padding: 8px 12px;
+    font-size: 12px;
+    background: var(--grey-bg);
+    border-top: 1px solid var(--border);
+    color: var(--text-mid);
+}
+
+.location-bar a {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.location-bar .pin { color: var(--blue); }
+
+/* ============ CONTENT ============ */
+.shomart-content {
+    padding: 0 0 90px;
+}
+
+/* ============ PRODUCT GRID - 2 COLUMNS (BULLETPROOF) ============ */
+ul.products,
+.woocommerce ul.products,
+.woocommerce-page ul.products {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 4px !important;
+    padding: 0 4px !important;
+    margin: 0 !important;
+    width: 100% !important;
+    list-style: none !important;
+    max-width: 100% !important;
+}
+ul.products li.product,
+ul.products li.product.first,
+ul.products li.product.last,
+.woocommerce ul.products li.product,
+.woocommerce ul.products li.product.first,
+.woocommerce ul.products li.product.last,
+.woocommerce-page ul.products li.product,
+.woocommerce-page ul.products li.product.first,
+.woocommerce-page ul.products li.product.last {
+    background: var(--white);
+    padding: 4px !important;
+    border-radius: 4px;
+    text-align: left;
+    margin: 0 !important;
+    width: auto !important;
+    max-width: none !important;
+    float: none !important;
+    clear: none !important;
+    display: block !important;
+}
+
+/* Force grid display override on WooCommerce */
+.woocommerce .products::before,
+.woocommerce .products::after,
+.woocommerce-page .products::before,
+.woocommerce-page .products::after {
+    display: none !important;
+    content: none !important;
+}
+
+ul.products li.product .woocommerce-loop-product__title,
+ul.products li.product .product-title {
+    font-size: 11px !important;
+    font-weight: 500;
+    color: var(--text-dark);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    min-height: 30px !important;
+    margin-bottom: 3px !important;
+    padding: 0 !important;
+    line-height: 1.3;
+}
+ul.products li.product .woocommerce-loop-product__title,
+ul.products li.product .product-title {
+    font-size: 11px !important;
+    font-weight: 500;
+    color: var(--text-dark);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    min-height: 30px !important;
+    margin-bottom: 3px !important;
+    padding: 0 !important;
+    line-height: 1.3;
+}
+
+ul.products li.product .price {
+    display: flex;
+    flex-direction: column;
+    color: var(--text-dark);
+}
+
+ul.products li.product .price {
+    padding: 0 2px;
+}
+
+ul.products li.product .price ins {
+    color: var(--text-dark);
+    font-weight: 700;
+    font-size: 12px !important;
+    text-decoration: none;
+}
+
+ul.products li.product .price del {
+    color: var(--text-light);
+    font-size: 9px !important;
+}
+
+ul.products li.product .price .amount {
+    font-size: 12px !important;
+    font-weight: 700;
+}
+
+ul.products li.product .price del .amount {
+    color: var(--text-light);
+}
+
+/* Remove Add to Cart from product cards */
+ul.products li.product .button,
+ul.products li.product .added_to_cart {
+    display: none !important;
+}
+
+/* ============ BOTTOM NAV - OVAL/PILL SHAPE (GREY) ============ */
+.shomart-bottom-nav {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    position: fixed;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #ffffff;
+    border: 1px solid var(--border);
+    border-radius: 50px;
+    width: calc(100% - 24px);
+    max-width: 456px;
+    height: 48px;
+    z-index: 999;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+    padding: 0 5px;
+}
+
+/* Hide bottom nav on single product page */
+body.single-product .shomart-bottom-nav {
+    display: none;
+}
+
+.shomart-bottom-nav a {
+    flex: 1;
+    text-align: center;
+    padding: 8px 4px;
+    border-radius: 50px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.shomart-bottom-nav a .icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.shomart-bottom-nav a svg {
+    stroke: var(--text-light);
+    transition: stroke 0.2s;
+}
+
+/* Hide "Home" button on home page */
+.home-page .shomart-bottom-nav a.nav-home {
+    display: none;
+}
+
+.shomart-bottom-nav a.active svg {
+    stroke: var(--blue);
+}
+
+/* ============ SCROLL TO TOP ============ */
+.scroll-top {
+    position: fixed;
+    bottom: 75px;
+    right: 20px;
+    width: 40px;
+    height: 40px;
+    background: var(--white);
+    color: var(--blue);
+    border: 2px solid var(--blue);
+    border-radius: 50%;
+    font-size: 18px;
+    cursor: pointer;
+    z-index: 998;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.scroll-top.show {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* ============ PRODUCT ACTION BAR (Single Product) ============ */
+.product-action-bar {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 480px;
+    background: var(--white);
+    box-shadow: 0 -2px 8px rgba(0,0,0,0.1);
+    padding: 10px 12px;
+    z-index: 999;
+    gap: 8px;
+}
+
+body.single-product .product-action-bar {
+    display: flex;
+}
+
+.action-btn {
+    flex: 1;
+    padding: 14px;
+    border: none;
+    border-radius: 6px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    text-align: center;
+}
+
+.action-btn-cart {
+    background: #f3f4f6;
+    color: var(--text-dark);
+    border: 1px solid var(--border);
+}
+
+.action-btn-buy {
+    background: var(--yellow);
+    color: var(--text-dark);
+}
+
+/* ============ WOOCOMMERCE CLEANUP ============ */
+.woocommerce-breadcrumb,
+.woocommerce-result-count,
+.woocommerce-products-header__title,
+.woocommerce-ordering,
+span.onsale,
+.woocommerce-products-header .page-title,
+h1.page-title,
+.woocommerce-products-header {
+    display: none !important;
+}
+
+.woocommerce-message,
+.woocommerce-info {
+    background: var(--white);
+    border-top: 3px solid var(--blue);
+    padding: 12px;
+    margin-bottom: 10px;
+    border-radius: 8px;
+    font-size: 14px;
+}
+
+/* ============ CART & CHECKOUT ============ */
+.woocommerce-cart-form,
+.cart-collaterals,
+.woocommerce-checkout,
+.woocommerce-checkout-review-order {
+    background: var(--white);
+    border-radius: 8px;
+    padding: 12px;
+}
+
+.woocommerce table.shop_table {
+    border: none !important;
+    border-radius: 8px !important;
+}
+
+.woocommerce a.checkout-button,
+.woocommerce button.checkout-button,
+.checkout-button {
+    background: var(--yellow) !important;
+    color: var(--text-dark) !important;
+    font-weight: 700 !important;
+    border-radius: 6px !important;
+    padding: 14px !important;
+    width: 100% !important;
+    font-size: 15px !important;
+}
+
+/* ============ HIDE DEFAULT FORMS ON SINGLE PRODUCT ============ */
+/* Hide WooCommerce default add to cart button (we use floating bar) */
+.single-product .single_add_to_cart_button,
+.single-product .cart .quantity {
+    display: none !important;
+}
+
+/* Hide default WooCommerce variations table (we use custom UI) */
+.single-product .variations_form .variations,
+.single-product .single_variation_wrap .woocommerce-variation-add-to-cart,
+.single-product .single_variation_wrap .woocommerce-variation-availability,
+.single-product .reset_variations {
+    display: none !important;
+}
+
+/* Hide default product title and price (we show them in our template) */
+.single-product .product_title.entry-title,
+.single-product .summary > .price {
+    display: none !important;
+}
+
+
+/* ============ CATEGORIES BUTTON ============ */
+.shomart-cat-wrap {
+    position: relative;
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: flex-end;
+    padding: 0 8px;
+}
+
+.shomart-cat-btn {
+    background: #ffc200;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+    color: #212121;
+}
+
+.shomart-cat-btn:active {
+    transform: scale(0.96);
+}
+
+/* ============ CATEGORIES POPUP OVERLAY ============ */
+.cat-popup-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 99998;
+    animation: fadeIn 0.25s ease-out;
+}
+
+.cat-popup-overlay.show {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+}
+
+.cat-popup-panel {
+    background: #fff;
+    width: 100%;
+    max-width: 480px;
+    max-height: 85vh;
+    border-radius: 24px 24px 0 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    animation: slideUp 0.3s ease-out;
+    box-shadow: 0 -10px 40px rgba(0,0,0,0.3);
+}
+
+.cat-popup-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid #f1f2f4;
+    background: #fff;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.cat-popup-header h3 {
+    font-size: 18px;
+    font-weight: 700;
+    color: #212121;
+    margin: 0;
+}
+
+.cat-popup-close {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: #f1f2f4;
+    border: none;
+    font-size: 16px;
+    cursor: pointer;
+    color: #212121;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cat-popup-close:active {
+    background: #e5e7eb;
+}
+
+.cat-popup-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+}
+
+.cat-popup-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 20px;
+    text-decoration: none;
+    color: inherit;
+    border-bottom: 1px solid #f9f9f9;
+    transition: background 0.15s;
+}
+
+.cat-popup-item:active {
+    background: #f1f2f4;
+}
+
+.cat-popup-img {
+    width: 50px;
+    height: 50px;
+    border-radius: 12px;
+    background: #f1f2f4;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.cat-popup-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.cat-letter {
+    font-size: 22px;
+    font-weight: 700;
+    color: #2874f0;
+    text-transform: uppercase;
+}
+
+.cat-popup-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.cat-popup-info strong {
+    display: block;
+    font-size: 15px;
+    font-weight: 600;
+    color: #212121;
+}
+
+
+.cat-popup-arrow {
+    font-size: 22px;
+    color: #878787;
+    font-weight: 300;
+}
+
+/* Lock body scroll when popup is open */
+body.cat-popup-open {
+    overflow: hidden;
+}
+
+/* ============ CATEGORY BAR ============ */
+.cat-bar-wrapper {
+    position: sticky;
+    top: 0;
+    z-index: 998;
+    background: var(--white);
+    transition: all 0.3s;
+}
+
+.cat-scroll-bar {
+    display: flex;
+    gap: 14px;
+    overflow-x: auto;
+    padding: 10px 12px;
+    background: var(--white);
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    transition: all 0.3s;
+}
+
+.cat-scroll-bar::-webkit-scrollbar { display: none; }
+
+.cat-item {
+    flex-shrink: 0;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s;
+    min-width: 56px;
+}
+
+.cat-item img,
+.cat-item .cat-img-placeholder {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: var(--grey-bg);
+    margin: 0 auto 3px;
+    transition: all 0.3s;
+    overflow: hidden;
+}
+
+.cat-item .cat-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-mid);
+    white-space: nowrap;
+}
+
+.cat-item.active .cat-label {
+    color: var(--blue);
+    font-weight: 700;
+}
+
+/* Active category: blue text only, NO ring/border */
+.cat-item.active img,
+.cat-item.active .cat-img-placeholder {
+    border: none;
+}
+
+
+/* ===== SCROLLED STATE: Images hidden, text-only bar ===== */
+.cat-bar-wrapper.scrolled .cat-item img,
+.cat-bar-wrapper.scrolled .cat-item .cat-img-placeholder {
+    height: 0 !important;
+    width: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    opacity: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    transition: all 0.25s ease-out;
+}
+
+/* Smooth transition for normal state */
+.cat-item img,
+.cat-item .cat-img-placeholder {
+    transition: all 0.25s ease-out;
+}
+
+/* Smooth padding transition for wrapper */
+.cat-bar-wrapper {
+    transition: padding 0.25s ease-out;
+}
+
+.cat-bar-wrapper.scrolled .cat-scroll-bar {
+    padding: 10px 8px;
+    gap: 8px;
+    border-bottom: 1px solid var(--border);
+}
+
+.cat-bar-wrapper.scrolled .cat-item {
+    min-width: auto;
+}
+
+.cat-bar-wrapper.scrolled .cat-item .cat-label {
+    font-size: 13px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 20px;
+    background: var(--grey-bg);
+}
+
+.cat-bar-wrapper.scrolled .cat-item.active .cat-label {
+    background: var(--blue);
+    color: #fff;
+}
+
+/* ============ SECTION TITLES ============ */
+.section-title {
+    font-size: 16px;
+    font-weight: 700;
+    padding: 16px 12px 8px;
+    background: var(--white);
+    margin-bottom: 8px;
+}
+
+/* ============ SUBCATEGORY GRID (SMALLER 4 COLUMNS) ============ */
+.subcat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    padding: 8px;
+    background: var(--white);
+    margin-bottom: 8px;
+}
+
+.subcat-card {
+    text-align: center;
+    padding: 4px;
+    background: var(--grey-bg);
+    border-radius: 6px;
+    transition: transform 0.15s;
+}
+
+.subcat-card:active {
+    transform: scale(0.95);
+}
+
+.subcat-card img,
+.subcat-card .subcat-img {
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 6px;
+    object-fit: cover;
+    margin-bottom: 3px;
+}
+
+.subcat-card .subcat-name {
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--text-dark);
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    line-height: 1.2;
+}
+/* ============ GENERAL BUTTONS ============ */
+.shomart-btn {
+    background: var(--yellow);
+    color: var(--text-dark);
+    font-weight: 700;
+    border: none;
+    padding: 12px;
+    border-radius: 6px;
+    width: 100%;
+    font-size: 15px;
+    cursor: pointer;
+}
+
+/* ============ TAB CONTENT ============ */
+.tab-content {
+    display: none;
+    position: relative;
+    z-index: 1;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+/* ============ VARIATION SWATCHES ============ */
+.single-product .variations .swatchimg-selector,
+.single-product .variations img {
+    width: 55px !important;
+    height: 70px !important;
+    border-radius: 8px;
+    object-fit: cover;
+}
+
+/* ============ FLY TO CART ANIMATION ============ */
+.fly-img {
+    position: fixed;
+    z-index: 9999;
+    pointer-events: none;
+    border-radius: 50%;
+    object-fit: cover;
+}
+/* ============ HIDE PRODUCT COUNTS EVERYWHERE ============ */
+
+/* Hide category count - WooCommerce default */
+.woocommerce mark.count,
+.product-category mark.count,
+.cat-count,
+.count,
+span.count {
+    display: none !important;
+}
+
+/* Hide count in category links */
+.woocommerce ul.products li.product-category a mark,
+.woocommerce ul.products li.product-category .count,
+.woocommerce-page ul.products li.product-category a mark {
+    display: none !important;
+}
+
+/* Hide count in widget */
+.widget_product_categories .count,
+.widget_categories .count {
+    display: none !important;
+}
+
+/* Hide count in subcategory grid */
+.subcat-card .count,
+.subcat-name .count {
+    display: none !important;
+}
+/* Hide product count on WooCommerce category cards */
+.woocommerce ul.products li.product-category h2 .count,
+.woocommerce ul.products li.product-category h3 .count,
+.woocommerce ul.products li.product-category mark,
+.woocommerce-loop-category__title .count {
+    display: none !important;
+}
+/* ============ SMALLER SUBCATEGORY CARDS (WooCommerce Default Categories) ============ */
+.woocommerce ul.products li.product-category,
+.woocommerce-page ul.products li.product-category {
+    background: var(--white) !important;
+    padding: 4px !important;
+    border-radius: 6px !important;
+}
+
+.woocommerce ul.products li.product-category a {
+    text-decoration: none;
+    color: inherit;
+    display: block;
+}
+
+.woocommerce ul.products li.product-category img,
+.woocommerce-page ul.products li.product-category img {
+    max-height: 80px !important;
+    width: 100% !important;
+    object-fit: contain !important;
+    margin: 0 auto 4px !important;
+    mix-blend-mode: multiply;
+}
+
+.woocommerce ul.products li.product-category h2,
+.woocommerce ul.products li.product-category h3,
+.woocommerce ul.products li.product-category .woocommerce-loop-category__title {
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    color: var(--text-dark) !important;
+    text-align: center !important;
+    padding: 2px 4px !important;
+    margin: 0 !important;
+    line-height: 1.2 !important;
+}
+
+/* Make grid show more items per row on category pages */
+.woocommerce ul.products:has(li.product-category),
+.woocommerce-page ul.products:has(li.product-category) {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 6px !important;
+}
+
+/* Hide ALL count numbers */
+.woocommerce ul.products li.product-category mark.count,
+.woocommerce ul.products li.product-category .count,
+.woocommerce mark.count,
+mark.count {
+    display: none !important;
+}
