@@ -461,9 +461,12 @@ function shomart_seller_application_column_content($column, $post_id) {
         case 'status':
             $status = get_post_meta($post_id, 'status', true);
             $status_colors = array(
-                'pending'  => '#ff9800',
-                'approved' => '#4caf50',
-                'rejected' => '#f44336',
+                'pending'   => '#ff9800',
+                'contacted' => '#2196f3',
+                'approved'  => '#4caf50',
+                'active'    => '#009688',
+                'fraud'     => '#f44336',
+                'rejected'  => '#f44336',
             );
             $color = isset($status_colors[$status]) ? $status_colors[$status] : '#878787';
             echo '<span style="background:' . $color . ';color:#fff;padding:4px 10px;border-radius:12px;font-size:11px;font-weight:700;text-transform:uppercase;">' . esc_html($status ?: 'Pending') . '</span>';
@@ -557,20 +560,6 @@ function shomart_seller_application_details_callback($post) {
     
     echo '</div>';
 }
-/**
- * Seller Status Meta Box
- */
-add_action('add_meta_boxes', function() {
-    add_meta_box(
-        'seller_application_status',
-        'Seller Status',
-        'shomart_seller_application_status_callback',
-        'seller_application',
-        'side',
-        'high'
-    );
-});
-
 function shomart_seller_application_status_callback($post) {
 
     wp_nonce_field('save_seller_status', 'seller_status_nonce');
@@ -589,8 +578,9 @@ function shomart_seller_application_status_callback($post) {
         <option value="pending" <?php selected($current_status, 'pending'); ?>>Pending</option>
         <option value="contacted" <?php selected($current_status, 'contacted'); ?>>Contacted</option>
         <option value="approved" <?php selected($current_status, 'approved'); ?>>Approved</option>
-        <option value="rejected" <?php selected($current_status, 'rejected'); ?>>Rejected</option>
         <option value="active" <?php selected($current_status, 'active'); ?>>Active Seller</option>
+        <option value="fraud" <?php selected($current_status, 'fraud'); ?>>Fraud / Blocked</option>
+        <option value="rejected" <?php selected($current_status, 'rejected'); ?>>Rejected</option>
     </select>
 
     <p style="margin-top:10px;">
@@ -893,37 +883,76 @@ function shomart_send_seller_email($post_id, $status) {
 
 add_action('init', function() {
 
-    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['seller_application_submit'])) {
+<?php
+/**
+ * Seller Form Handler - FIXED
+ */
 
-        if (!isset($_POST['seller_nonce']) || 
-            !wp_verify_nonce($_POST['seller_nonce'], 'seller_application_nonce')) {
-            return;
-        }
+add_action('init', 'shomart_handle_seller_application');
+function shomart_handle_seller_application() {
 
-        $shop_name  = sanitize_text_field($_POST['shop_name']);
-        $owner_name = sanitize_text_field($_POST['owner_name']);
-        $phone      = sanitize_text_field($_POST['phone']);
-        $email      = sanitize_email($_POST['email']);
-
-        if (empty($shop_name) || empty($owner_name) || empty($phone)) {
-            return;
-        }
-
-        $post_id = wp_insert_post(array(
-            'post_title'  => $shop_name . ' - ' . $owner_name,
-            'post_status' => 'publish',
-            'post_type'   => 'seller_application'
-        ));
-
-        if ($post_id && !is_wp_error($post_id)) {
-            wp_redirect(home_url('/become-seller/?submitted=true'));
-            exit;
-        }
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_POST['seller_nonce'])) {
+        return;
     }
 
-});
-add_action('init', function() {
-    if (isset($_POST['seller_application_submit'])) {
-        die('FORM DETECTED');
+    if (!wp_verify_nonce($_POST['seller_nonce'], 'seller_application_nonce')) {
+        wp_die('Security check failed. Please go back and try again.');
     }
-});
+
+    // Get all fields
+    $shop_name      = sanitize_text_field($_POST['shop_name'] ?? '');
+    $shop_city      = sanitize_text_field($_POST['shop_city'] ?? '');
+    $shop_address   = sanitize_textarea_field($_POST['shop_address'] ?? '');
+    $years_business = sanitize_text_field($_POST['years_business'] ?? '');
+    $owner_name     = sanitize_text_field($_POST['owner_name'] ?? '');
+    $phone          = sanitize_text_field($_POST['phone'] ?? '');
+    $whatsapp       = sanitize_text_field($_POST['whatsapp'] ?? '');
+    $email          = sanitize_email($_POST['email'] ?? '');
+    $products_sold  = sanitize_textarea_field($_POST['products_sold'] ?? '');
+    $monthly_sales  = sanitize_text_field($_POST['monthly_sales'] ?? '');
+    $message        = sanitize_textarea_field($_POST['message'] ?? '');
+
+    // Required validation
+    if (empty($shop_name) || empty($owner_name) || empty($phone) || empty($shop_city) || empty($shop_address) || empty($products_sold)) {
+        wp_redirect(home_url('/become-seller/?error=missing_fields'));
+        exit;
+    }
+
+    // Phone validation - 10 digits
+    if (!preg_match('/^[0-9]{10}$/', $phone)) {
+        wp_redirect(home_url('/become-seller/?error=invalid_phone'));
+        exit;
+    }
+
+    // Insert application
+    $post_id = wp_insert_post(array(
+        'post_title'   => $shop_name . ' - ' . $owner_name,
+        'post_content' => $message,
+        'post_status'  => 'publish',
+        'post_type'    => 'seller_application'
+    ));
+
+    if ($post_id && !is_wp_error($post_id)) {
+        // Save all meta fields
+        update_post_meta($post_id, 'shop_name', $shop_name);
+        update_post_meta($post_id, 'shop_city', $shop_city);
+        update_post_meta($post_id, 'shop_address', $shop_address);
+        update_post_meta($post_id, 'years_business', $years_business);
+        update_post_meta($post_id, 'owner_name', $owner_name);
+        update_post_meta($post_id, 'phone', $phone);
+        update_post_meta($post_id, 'whatsapp', $whatsapp ?: $phone);
+        update_post_meta($post_id, 'email', $email);
+        update_post_meta($post_id, 'products_sold', $products_sold);
+        update_post_meta($post_id, 'monthly_sales', $monthly_sales);
+        update_post_meta($post_id, 'message', $message);
+        
+        // Set initial status
+        update_post_meta($post_id, 'status', 'pending');
+
+        wp_redirect(home_url('/become-seller/?submitted=true'));
+        exit;
+    } else {
+        wp_redirect(home_url('/become-seller/?error=save_failed'));
+        exit;
+    }
+}

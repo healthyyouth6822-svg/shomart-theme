@@ -5,16 +5,25 @@
  */
 
 get_header();
-
-// Handle form submission
-$success_message = '';
-$error_message = '';
-
-
 ?>
+
 <?php if (isset($_GET['submitted'])): ?>
-    <div class="alert alert-success">
+    <div class="alert alert-success" style="margin:12px;">
         ✅ Application submitted successfully! We will contact you soon.
+    </div>
+<?php endif; ?>
+
+<?php if (isset($_GET['error'])): 
+    $error_messages = array(
+        'missing_fields' => 'Please fill all required fields.',
+        'invalid_phone' => 'Please enter a valid 10-digit phone number.',
+        'save_failed' => 'Failed to save application. Please try again.'
+    );
+    $error_key = sanitize_text_field($_GET['error']);
+    $error_text = isset($error_messages[$error_key]) ? $error_messages[$error_key] : 'Something went wrong.';
+?>
+    <div class="alert alert-error" style="margin:12px;">
+        ⚠️ <?php echo esc_html($error_text); ?>
     </div>
 <?php endif; ?>
 
@@ -95,21 +104,10 @@ $error_message = '';
         <h2>📝 Apply Now</h2>
         <p class="form-subtitle">Fill the form below and we'll contact you soon!</p>
         
-        <?php if ($success_message) : ?>
-            <div class="alert alert-success">
-                ✅ <?php echo esc_html($success_message); ?>
-            </div>
-        <?php endif; ?>
-        
-        <?php if ($error_message) : ?>
-            <div class="alert alert-error">
-                ⚠️ <?php echo esc_html($error_message); ?>
-            </div>
-        <?php endif; ?>
-        
         <form method="post" class="seller-application-form" id="sellerForm">
             
             <?php wp_nonce_field('seller_application_nonce', 'seller_nonce'); ?>
+            <input type="hidden" name="seller_application_submit" value="1">
             
             <div class="form-section">
                 <h3>🏪 Shop Information</h3>
@@ -607,10 +605,10 @@ document.getElementById('sellerForm').addEventListener('submit', function(e) {
         return false;
     }
     
-    // Show loading state
+    // Show loading state - disable AFTER submit so button name is sent
     var btn = document.querySelector('.submit-btn');
     btn.innerHTML = '⏳ Submitting...';
-    btn.disabled = true;
+    setTimeout(function(){ btn.disabled = true; }, 50);
 });
 
 // Auto-fill WhatsApp from phone
