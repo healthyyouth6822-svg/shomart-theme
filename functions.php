@@ -5,6 +5,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
+ * Google Sheets sync is disabled until the Apps Script Web App URL is added.
+ * See SELLER_SHEETS_SETUP.md for setup instructions.
+ */
+if ( ! defined( 'SHOMART_SHEETS_WEBHOOK_URL' ) ) {
+    define( 'SHOMART_SHEETS_WEBHOOK_URL', '' );
+}
+
+/**
  * STEP 1: Theme Setup
  */
 function shomart_setup() {
@@ -460,6 +468,9 @@ function shomart_seller_application_column_content($column, $post_id) {
             break;
         case 'status':
             $status = get_post_meta($post_id, 'status', true);
+            if (!$status) {
+                $status = 'pending';
+            }
             $status_colors = array(
                 'pending'   => '#ff9800',
                 'contacted' => '#2196f3',
@@ -597,8 +608,8 @@ function shomart_seller_application_status_callback($post) {
  */
 add_action('save_post_seller_application', function($post_id) {
 
-    if (!isset($_POST['seller_status_nonce']) || 
-        !wp_verify_nonce($_POST['seller_status_nonce'], 'save_seller_status')) {
+    if (!isset($_POST['seller_status_nonce']) ||
+        !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['seller_status_nonce'])), 'save_seller_status')) {
         return;
     }
 
@@ -608,13 +619,18 @@ add_action('save_post_seller_application', function($post_id) {
 
     if (!isset($_POST['seller_status'])) return;
 
-    $new_status = sanitize_text_field($_POST['seller_status']);
+    $allowed_statuses = array('pending', 'contacted', 'approved', 'active', 'fraud', 'rejected');
+    $new_status = sanitize_key(wp_unslash($_POST['seller_status']));
+    if (!in_array($new_status, $allowed_statuses, true)) return;
+
     $old_status = get_post_meta($post_id, 'status', true);
 
     update_post_meta($post_id, 'status', $new_status);
 
-    // If approved and shop number not assigned yet
-    if ($new_status === 'approved' && $old_status !== 'approved') {
+    // Generate a serial and notify once when the seller first becomes approved/active.
+    $is_approving = in_array($new_status, array('approved', 'active'), true);
+    $was_approved = in_array($old_status, array('approved', 'active'), true);
+    if ($is_approving && !$was_approved) {
 
         $existing_number = get_post_meta($post_id, 'shop_serial', true);
 
@@ -624,10 +640,15 @@ add_action('save_post_seller_application', function($post_id) {
         }
 
         shomart_send_seller_email($post_id, 'approved');
+        do_action('shomart_seller_approved', $post_id);
     }
 
     if ($new_status === 'rejected' && $old_status !== 'rejected') {
         shomart_send_seller_email($post_id, 'rejected');
+    }
+
+    if ($new_status === 'fraud') {
+        update_post_meta($post_id, '_shomart_fraud_flag', current_time('mysql'));
     }
 
 });
@@ -817,12 +838,13 @@ function shomart_generate_shop_number() {
     $query = new WP_Query($args);
 
     if ($query->have_posts()) {
-        $query->the_post();
-        $last_number = (int) get_post_meta(get_the_ID(), 'shop_serial', true);
+        $post = $query->posts[0];
+        $last_number = (int) get_post_meta($post->ID, 'shop_serial', true);
         wp_reset_postdata();
         return str_pad($last_number + 1, 3, '0', STR_PAD_LEFT);
     }
 
+    wp_reset_postdata();
     return '001';
 }
 /**
@@ -880,14 +902,6 @@ function shomart_send_seller_email($post_id, $status) {
 /**
  * Seller Form Handler
  */
-
-add_action('init', function() {
-
-<?php
-/**
- * Seller Form Handler - FIXED
- */
-
 add_action('init', 'shomart_handle_seller_application');
 function shomart_handle_seller_application() {
 
@@ -955,4 +969,476 @@ function shomart_handle_seller_application() {
         wp_redirect(home_url('/become-seller/?error=save_failed'));
         exit;
     }
+}
+
+/**
+ * SHOMART SELLER / PRODUCT LINKING
+ * For Ladakh local sellers – admin assigns products to sellers.
+ */
+
+// ===== 1. PRODUCT SELLER META BOX =====
+add_action('add_meta_boxes', 'shomart_product_seller_meta_box');
+function shomart_product_seller_meta_box() {
+    add_meta_box(
+        'shomart_product_seller',
+        '🏪 Seller / Shop (Shomart)',
+        'shomart_product_seller_meta_box_callback',
+        'product',
+        'side',
+        'high'
+    );
+}
+
+function shomart_product_seller_meta_box_callback($post) {
+    wp_nonce_field('shomart_save_product_seller', 'shomart_product_seller_nonce');
+
+    $current_seller_id = absint(get_post_meta($post->ID, '_shomart_seller_id', true));
+    $current_serial = get_post_meta($post->ID, '_shomart_shop_serial', true);
+    $sellers = get_posts(array(
+        'post_type'      => 'seller_application',
+        'posts_per_page' => -1,
+        'post_status'    => 'publish',
+        'meta_query'     => array(
+            array(
+                'key'     => 'status',
+                'value'   => array('approved', 'active'),
+                'compare' => 'IN',
+            ),
+        ),
+        'orderby'        => 'title',
+        'order'          => 'ASC',
+    ));
+
+    echo '<p><label for="shomart_seller_id"><strong>Assign to Seller:</strong></label></p>';
+    echo '<select id="shomart_seller_id" name="shomart_seller_id" style="width:100%;">';
+    echo '<option value="">— No seller / Shomart Direct —</option>';
+
+    foreach ($sellers as $seller) {
+        $shop_name = get_post_meta($seller->ID, 'shop_name', true);
+        $city = get_post_meta($seller->ID, 'shop_city', true);
+        $serial = get_post_meta($seller->ID, 'shop_serial', true);
+        $label = $shop_name ? $shop_name : $seller->post_title;
+
+        if ($city) {
+            $label .= ' – ' . $city;
+        }
+        if ($serial) {
+            $label .= ' – #' . $serial;
+        }
+
+        echo '<option value="' . esc_attr($seller->ID) . '" ' . selected($current_seller_id, $seller->ID, false) . '>' . esc_html($label) . '</option>';
+    }
+
+    echo '</select>';
+
+    if ($current_serial) {
+        echo '<p style="margin-top:10px;padding:8px;background:#e8f5e9;border-left:3px solid #4caf50;font-size:12px;">Current: <strong>Shop #' . esc_html($current_serial) . '</strong></p>';
+    }
+
+    echo '<p class="description" style="font-size:11px;color:#666;">Select which Ladakh shop this product belongs to. The customer will see the shop serial number only after ordering.</p>';
+}
+
+add_action('save_post_product', 'shomart_save_product_seller', 10, 2);
+function shomart_save_product_seller($post_id, $post) {
+    if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) {
+        return;
+    }
+    if (wp_is_post_revision($post_id)) {
+        return;
+    }
+    if (!isset($_POST['shomart_product_seller_nonce'])) {
+        return;
+    }
+
+    $nonce = sanitize_text_field(wp_unslash($_POST['shomart_product_seller_nonce']));
+    if (!wp_verify_nonce($nonce, 'shomart_save_product_seller')) {
+        return;
+    }
+    if (!current_user_can('edit_post', $post_id)) {
+        return;
+    }
+
+    $seller_id = isset($_POST['shomart_seller_id']) ? absint($_POST['shomart_seller_id']) : 0;
+    $seller_status = $seller_id ? get_post_meta($seller_id, 'status', true) : '';
+    $valid_seller = $seller_id
+        && 'seller_application' === get_post_type($seller_id)
+        && in_array($seller_status, array('approved', 'active'), true);
+
+    if ($valid_seller) {
+        $shop_serial = get_post_meta($seller_id, 'shop_serial', true);
+        update_post_meta($post_id, '_shomart_seller_id', $seller_id);
+        update_post_meta($post_id, '_shomart_shop_serial', $shop_serial);
+    } else {
+        delete_post_meta($post_id, '_shomart_seller_id');
+        delete_post_meta($post_id, '_shomart_shop_serial');
+    }
+}
+
+add_filter('manage_product_posts_columns', 'shomart_add_product_seller_column');
+function shomart_add_product_seller_column($columns) {
+    $new_columns = array();
+    $added = false;
+
+    foreach ($columns as $key => $label) {
+        $new_columns[$key] = $label;
+        if ('price' === $key) {
+            $new_columns['shomart_seller'] = '🏪 Seller';
+            $added = true;
+        }
+    }
+
+    if (!$added) {
+        $new_columns['shomart_seller'] = '🏪 Seller';
+    }
+
+    return $new_columns;
+}
+
+add_action('manage_product_posts_custom_column', 'shomart_product_seller_column_content', 10, 2);
+function shomart_product_seller_column_content($column, $post_id) {
+    if ('shomart_seller' !== $column) {
+        return;
+    }
+
+    $seller_id = absint(get_post_meta($post_id, '_shomart_seller_id', true));
+    $serial = get_post_meta($post_id, '_shomart_shop_serial', true);
+
+    if (!$seller_id) {
+        echo '<span style="color:#999;">— Direct</span>';
+        return;
+    }
+
+    $shop_name = get_post_meta($seller_id, 'shop_name', true);
+    $shop_name = $shop_name ? $shop_name : get_the_title($seller_id);
+    echo '<span style="color:#2874f0;">' . esc_html($shop_name);
+    if ($serial) {
+        echo '<br><strong>#' . esc_html($serial) . '</strong>';
+    }
+    echo '</span>';
+}
+
+// ===== 2. COPY SELLER DETAILS TO ORDER ITEMS =====
+/**
+ * Read seller data from a product. Variations fall back to their parent product.
+ *
+ * @param WC_Product $product Product object.
+ * @return array
+ */
+function shomart_get_product_seller_data($product) {
+    if (!$product || !is_a($product, 'WC_Product')) {
+        return array('seller_id' => 0, 'serial' => '');
+    }
+
+    $product_id = $product->get_id();
+    $seller_id = absint(get_post_meta($product_id, '_shomart_seller_id', true));
+    $serial = get_post_meta($product_id, '_shomart_shop_serial', true);
+
+    if ((!$seller_id || !$serial) && $product->is_type('variation')) {
+        $parent_id = $product->get_parent_id();
+        if (!$seller_id) {
+            $seller_id = absint(get_post_meta($parent_id, '_shomart_seller_id', true));
+        }
+        if (!$serial) {
+            $serial = get_post_meta($parent_id, '_shomart_shop_serial', true);
+        }
+    }
+
+    return array(
+        'seller_id' => $seller_id,
+        'serial'    => $serial,
+    );
+}
+
+add_action('woocommerce_checkout_create_order_line_item', 'shomart_copy_seller_to_order_item', 10, 4);
+function shomart_copy_seller_to_order_item($item, $cart_item_key, $values, $order) {
+    if (empty($values['data']) || !is_a($values['data'], 'WC_Product')) {
+        return;
+    }
+
+    $seller_data = shomart_get_product_seller_data($values['data']);
+    if ($seller_data['serial']) {
+        $item->add_meta_data('_shomart_shop_serial', $seller_data['serial'], true);
+    }
+    if ($seller_data['seller_id']) {
+        $item->add_meta_data('_shomart_seller_id', $seller_data['seller_id'], true);
+    }
+}
+
+/**
+ * Return the unique shop serials represented in an order.
+ * Product meta is used as a fallback for orders placed before order-item copying.
+ *
+ * @param WC_Order|int $order Order object or ID.
+ * @return array
+ */
+function shomart_get_order_shop_serials($order) {
+    if (is_numeric($order)) {
+        $order = wc_get_order(absint($order));
+    }
+    if (!$order || !is_a($order, 'WC_Order')) {
+        return array();
+    }
+
+    $serials = array();
+    foreach ($order->get_items() as $item) {
+        $serial = $item->get_meta('_shomart_shop_serial', true);
+
+        if (!$serial) {
+            $seller_data = shomart_get_product_seller_data($item->get_product());
+            $serial = $seller_data['serial'];
+        }
+
+        if ($serial && !in_array($serial, $serials, true)) {
+            $serials[] = $serial;
+        }
+    }
+
+    return $serials;
+}
+
+/**
+ * Restrict post-order seller output to the two customer order screens.
+ *
+ * @return bool
+ */
+function shomart_is_customer_order_endpoint() {
+    return function_exists('is_wc_endpoint_url')
+        && (is_wc_endpoint_url('view-order') || is_wc_endpoint_url('order-received'));
+}
+
+// ===== 3. SHOW SERIAL ON THANK YOU PAGE =====
+add_action('woocommerce_thankyou', 'shomart_thankyou_shop_serial', 5);
+function shomart_thankyou_shop_serial($order_id) {
+    if (!$order_id) {
+        return;
+    }
+
+    $order = wc_get_order($order_id);
+    $serials = shomart_get_order_shop_serials($order);
+    if (empty($serials)) {
+        return;
+    }
+
+    $label = 1 === count($serials) ? 'Shop Serial Number' : 'Shop Serial Numbers';
+    $formatted = array_map(
+        static function($serial) {
+            return 'SM-' . $serial;
+        },
+        $serials
+    );
+
+    echo '<div class="shomart-order-shop-serials" style="background:#e8f5e9;border:1px solid #c8e6c9;border-radius:8px;padding:16px;margin:16px 0;text-align:center;">';
+    echo '<strong style="font-size:14px;color:#2e7d32;">' . esc_html($label) . ': ' . esc_html(implode(', ', $formatted)) . '</strong>';
+    echo '<p style="margin:6px 0 0;font-size:12px;color:#555;">Save this number for complaints / returns. COD – Cash on Delivery</p>';
+    echo '</div>';
+}
+
+// ===== 4. SHOW SERIAL IN MY ACCOUNT / ORDER RECEIVED =====
+add_filter('woocommerce_get_order_item_totals', 'shomart_add_shop_serial_order_total', 20, 3);
+function shomart_add_shop_serial_order_total($total_rows, $order, $tax_display) {
+    if (!shomart_is_customer_order_endpoint()) {
+        return $total_rows;
+    }
+
+    $serials = shomart_get_order_shop_serials($order);
+    if (empty($serials)) {
+        return $total_rows;
+    }
+
+    $formatted = array_map(
+        static function($serial) {
+            return '#' . $serial;
+        },
+        $serials
+    );
+    $label = count($serials) > 1 ? 'Shop Serial Numbers:' : 'Shop Serial Number:';
+    $serial_row = array(
+        'label' => $label,
+        'value' => '<strong style="color:#2874f0;">' . esc_html(implode(', ', $formatted)) . '</strong>',
+    );
+    $new_rows = array();
+
+    foreach ($total_rows as $key => $row) {
+        $new_rows[$key] = $row;
+        if ('payment_method' === $key) {
+            $new_rows['shomart_shop_serial'] = $serial_row;
+        }
+    }
+
+    if (!isset($new_rows['shomart_shop_serial'])) {
+        $new_rows['shomart_shop_serial'] = $serial_row;
+    }
+
+    return $new_rows;
+}
+
+add_filter('woocommerce_order_item_name', 'shomart_add_shop_serial_to_order_item_name', 10, 2);
+function shomart_add_shop_serial_to_order_item_name($item_name, $item) {
+    if (!shomart_is_customer_order_endpoint() || !is_a($item, 'WC_Order_Item_Product')) {
+        return $item_name;
+    }
+
+    $serial = $item->get_meta('_shomart_shop_serial', true);
+    if (!$serial) {
+        $seller_data = shomart_get_product_seller_data($item->get_product());
+        $serial = $seller_data['serial'];
+    }
+
+    if ($serial) {
+        $item_name .= '<br><small style="color:#2874f0;">Shop #' . esc_html($serial) . '</small>';
+    }
+
+    return $item_name;
+}
+
+// ===== 5. GOOGLE SHEETS SYNC =====
+/**
+ * Send one seller's current details to the configured Google Apps Script URL.
+ *
+ * @param int $post_id Seller application post ID.
+ * @return bool
+ */
+function shomart_sync_seller_to_sheets($post_id) {
+    $webhook = defined('SHOMART_SHEETS_WEBHOOK_URL') ? SHOMART_SHEETS_WEBHOOK_URL : '';
+    if (empty($webhook)) {
+        return false;
+    }
+
+    $data = array(
+        'serial'        => get_post_meta($post_id, 'shop_serial', true),
+        'shop_name'     => get_post_meta($post_id, 'shop_name', true),
+        'owner_name'    => get_post_meta($post_id, 'owner_name', true),
+        'phone'         => get_post_meta($post_id, 'phone', true),
+        'whatsapp'      => get_post_meta($post_id, 'whatsapp', true),
+        'email'         => get_post_meta($post_id, 'email', true),
+        'city'          => get_post_meta($post_id, 'shop_city', true),
+        'address'       => get_post_meta($post_id, 'shop_address', true),
+        'products'      => get_post_meta($post_id, 'products_sold', true),
+        'years'         => get_post_meta($post_id, 'years_business', true),
+        'monthly_sales' => get_post_meta($post_id, 'monthly_sales', true),
+        'status'        => get_post_meta($post_id, 'status', true),
+        'date'          => get_the_date('Y-m-d H:i:s', $post_id),
+        'post_id'       => $post_id,
+    );
+
+    $response = wp_remote_post($webhook, array(
+        'timeout' => 5,
+        'headers' => array('Content-Type' => 'application/json'),
+        'body'    => wp_json_encode($data),
+    ));
+
+    if (is_wp_error($response)) {
+        error_log('Shomart Sheets sync failed: ' . $response->get_error_message());
+        return false;
+    }
+
+    $response_code = wp_remote_retrieve_response_code($response);
+    if ($response_code < 200 || $response_code >= 300) {
+        error_log('Shomart Sheets sync failed: HTTP ' . $response_code);
+        return false;
+    }
+
+    return true;
+}
+
+/**
+ * Sync approved/active sellers once per request. This runs from both the custom
+ * approval action and save_post so status saves remain covered.
+ */
+function shomart_seller_approval_sheets_sync($post_id, $post = null, $update = false) {
+    static $synced = array();
+
+    $post_id = absint($post_id);
+    if (!$post_id || isset($synced[$post_id])) {
+        return;
+    }
+    if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) {
+        return;
+    }
+    if (wp_is_post_revision($post_id) || 'seller_application' !== get_post_type($post_id)) {
+        return;
+    }
+
+    $new_status = get_post_meta($post_id, 'status', true);
+    if (!in_array($new_status, array('approved', 'active'), true)) {
+        return;
+    }
+
+    $synced[$post_id] = true;
+    shomart_sync_seller_to_sheets($post_id);
+}
+add_action('shomart_seller_approved', 'shomart_seller_approval_sheets_sync', 10, 1);
+add_action('save_post_seller_application', 'shomart_seller_approval_sheets_sync', 20, 3);
+
+// ===== 6. SELLER APPLICATION ADMIN IMPROVEMENTS =====
+add_filter('manage_seller_application_posts_columns', 'shomart_improved_seller_application_columns', 20);
+function shomart_improved_seller_application_columns($columns) {
+    return array(
+        'cb'            => '<input type="checkbox" />',
+        'title'         => 'Shop / Owner',
+        'serial'        => 'Serial #',
+        'phone'         => 'Phone',
+        'city'          => 'City',
+        'products_info' => 'Products Sold',
+        'listed'        => 'Listed Products',
+        'status'        => 'Status',
+        'date'          => 'Applied On',
+    );
+}
+
+add_action('manage_seller_application_posts_custom_column', 'shomart_improved_seller_application_column_content', 20, 2);
+function shomart_improved_seller_application_column_content($column, $post_id) {
+    if ('serial' === $column) {
+        $serial = get_post_meta($post_id, 'shop_serial', true);
+        echo $serial
+            ? '<strong style="color:#2874f0;">#' . esc_html($serial) . '</strong>'
+            : '<span style="color:#999;">—</span>';
+    }
+
+    if ('products_info' === $column) {
+        $products = get_post_meta($post_id, 'products_sold', true);
+        echo esc_html(wp_trim_words($products, 8));
+    }
+
+    if ('listed' === $column) {
+        $products = new WP_Query(array(
+            'post_type'      => 'product',
+            'post_status'    => array('publish', 'pending', 'draft', 'private', 'future'),
+            'meta_key'       => '_shomart_seller_id',
+            'meta_value'     => $post_id,
+            'posts_per_page' => -1,
+            'fields'         => 'ids',
+            'no_found_rows'  => true,
+        ));
+        $count = $products->post_count;
+        wp_reset_postdata();
+
+        if ($count > 0) {
+            $url = admin_url('edit.php?post_type=product&shomart_seller_filter=' . absint($post_id));
+            $label = 1 === $count ? '1 product' : $count . ' products';
+            echo '<a href="' . esc_url($url) . '" style="font-weight:700;color:#4caf50;">' . esc_html($label) . '</a>';
+        } else {
+            echo '<span style="color:#999;">0</span>';
+        }
+    }
+}
+
+add_action('pre_get_posts', 'shomart_filter_products_by_seller');
+function shomart_filter_products_by_seller($query) {
+    global $pagenow;
+
+    if (!is_admin() || 'edit.php' !== $pagenow || !$query->is_main_query()) {
+        return;
+    }
+    if ('product' !== $query->get('post_type') || empty($_GET['shomart_seller_filter'])) {
+        return;
+    }
+
+    $seller_id = absint($_GET['shomart_seller_filter']);
+    if (!$seller_id) {
+        return;
+    }
+
+    $query->set('meta_key', '_shomart_seller_id');
+    $query->set('meta_value', $seller_id);
 }
