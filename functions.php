@@ -5,11 +5,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Google Sheets sync is disabled until the Apps Script Web App URL is added.
- * See SELLER_SHEETS_SETUP.md for setup instructions.
+ * Google Sheets seller sync Web App endpoint.
+ * See SELLER_SHEETS_SETUP.md for deployment and update instructions.
  */
 if ( ! defined( 'SHOMART_SHEETS_WEBHOOK_URL' ) ) {
-    define( 'SHOMART_SHEETS_WEBHOOK_URL', '' );
+    define( 'SHOMART_SHEETS_WEBHOOK_URL', 'https://script.google.com/macros/s/AKfycbwxSyl22MjEvDm5TMSQoQgnk-Vi_v6-uUsegyS29MQuVG_-d5C0hbqt6CtHqguZAkpo/exec' );
 }
 
 /**
