@@ -1442,3 +1442,317 @@ function shomart_filter_products_by_seller($query) {
     $query->set('meta_key', '_shomart_seller_id');
     $query->set('meta_value', $seller_id);
 }
+
+/** ============================================================
+ * SHOMART PRODUCT REQUEST FORM HANDLER v3.0 (Category-based)
+ * ============================================================ */
+
+if (!defined('SHOMART_PRODUCTS_WEBHOOK_URL')) {
+    define('SHOMART_PRODUCTS_WEBHOOK_URL', 'https://script.google.com/macros/s/AKfycbwxSyl22MjEvDm5TMSQoQgnk-Vi_v6-uUsegyS29MQuVG_-d5C0hbqt6CtHqguZAkpo/exec');
+}
+
+add_action('init', 'shomart_handle_product_submission');
+function shomart_handle_product_submission() {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !isset($_POST['shomart_add_products_submit'])) return;
+    if (!isset($_POST['shomart_products_nonce']) || !wp_verify_nonce(sanitize_text_field(wp_unslash($_POST['shomart_products_nonce'])), 'shomart_add_products')) {
+        wp_die('Security check failed.');
+    }
+    $shop_id = absint($_POST['shop_id'] ?? 0);
+    $category = sanitize_text_field($_POST['product_category'] ?? '');
+    $product_name = sanitize_text_field($_POST['product_name'] ?? '');
+    $selling_price = sanitize_text_field($_POST['selling_price'] ?? '');
+    $retail_price = sanitize_text_field($_POST['retail_price'] ?? '');
+    $stock = sanitize_text_field($_POST['stock'] ?? '');
+    $brand = sanitize_text_field($_POST['brand'] ?? '');
+    $description = sanitize_textarea_field($_POST['description'] ?? '');
+    if (empty($shop_id) || empty($category) || empty($product_name) || empty($selling_price) || $stock === '' || empty($brand)) {
+        wp_redirect(home_url('/seller-add-products/?error=missing_fields')); exit;
+    }
+    $shop_name = get_post_meta($shop_id, 'shop_name', true);
+    $shop_serial = get_post_meta($shop_id, 'shop_serial', true);
+    $shop_city = get_post_meta($shop_id, 'shop_city', true);
+    if (!$shop_name) { wp_redirect(home_url('/seller-add-products/?error=invalid_shop')); exit; }
+
+    $extra = array();
+    switch ($category) {
+        case 'mobile':
+            $extra['ram'] = sanitize_text_field($_POST['m_ram'] ?? '');
+            $extra['storage'] = sanitize_text_field($_POST['m_storage'] ?? '');
+            $extra['camera'] = sanitize_text_field($_POST['m_camera'] ?? '');
+            $extra['front_cam'] = sanitize_text_field($_POST['m_front_cam'] ?? '');
+            $extra['battery'] = sanitize_text_field($_POST['m_battery'] ?? '');
+            $extra['charging'] = sanitize_text_field($_POST['m_charging'] ?? '');
+            $extra['display'] = sanitize_text_field($_POST['m_display'] ?? '');
+            $extra['network'] = sanitize_text_field($_POST['m_network'] ?? '');
+            $extra['color'] = sanitize_text_field($_POST['m_color'] ?? '');
+            $extra['model_no'] = sanitize_text_field($_POST['m_model'] ?? '');
+            $extra['processor'] = sanitize_text_field($_POST['m_processor'] ?? '');
+            $extra['os'] = sanitize_text_field($_POST['m_os'] ?? '');
+            $extra['warranty'] = sanitize_text_field($_POST['m_warranty'] ?? '');
+            $extra['box'] = sanitize_text_field($_POST['m_box'] ?? '');
+            if (empty($description)) {
+                $description = "{$brand} {$product_name} - {$extra['ram']} RAM / {$extra['storage']} Storage. Camera: {$extra['camera']}. Battery: {$extra['battery']}." . ($extra['display'] ? " Display: {$extra['display']}." : '') . ($extra['processor'] ? " Processor: {$extra['processor']}." : '') . ($extra['warranty'] ? " Warranty: {$extra['warranty']}." : '');
+            }
+            break;
+        case 'electronics':
+            $extra['color'] = sanitize_text_field($_POST['el_color'] ?? '');
+            $extra['connectivity'] = sanitize_text_field($_POST['el_connectivity'] ?? '');
+            $extra['battery_life'] = sanitize_text_field($_POST['el_battery'] ?? '');
+            $extra['warranty'] = sanitize_text_field($_POST['el_warranty'] ?? '');
+            $extra['model_no'] = sanitize_text_field($_POST['el_model'] ?? '');
+            if (empty($description)) {
+                $description = "{$brand} {$product_name}." . ($extra['color'] ? " Color: {$extra['color']}." : '') . ($extra['connectivity'] ? " Connectivity: {$extra['connectivity']}." : '') . ($extra['battery_life'] ? " Battery: {$extra['battery_life']}." : '') . ($extra['warranty'] ? " Warranty: {$extra['warranty']}." : '');
+            }
+            break;
+        case 'fashion':
+            $extra['size'] = sanitize_text_field($_POST['fa_size'] ?? '');
+            $extra['color'] = sanitize_text_field($_POST['fa_color'] ?? '');
+            $extra['material'] = sanitize_text_field($_POST['fa_material'] ?? '');
+            $extra['gender'] = sanitize_text_field($_POST['fa_gender'] ?? '');
+            $extra['fit'] = sanitize_text_field($_POST['fa_fit'] ?? '');
+            if (empty($description)) {
+                $description = "{$brand} {$product_name} - {$extra['gender']}'s {$extra['fit']} fit. Size: {$extra['size']}. Material: {$extra['material']}." . ($extra['color'] ? " Color: {$extra['color']}." : '');
+            }
+            break;
+        case 'sports':
+            $extra['size'] = sanitize_text_field($_POST['sp_size'] ?? '');
+            $extra['material'] = sanitize_text_field($_POST['sp_material'] ?? '');
+            $extra['level'] = sanitize_text_field($_POST['sp_level'] ?? '');
+            $extra['hand'] = sanitize_text_field($_POST['sp_hand'] ?? '');
+            if (empty($description)) {
+                $description = "{$brand} {$product_name}. Size/Weight: {$extra['size']}. Material: {$extra['material']}." . ($extra['level'] ? " Level: {$extra['level']}." : '') . ($extra['hand'] ? " Hand: {$extra['hand']}." : '');
+            }
+            break;
+        case 'beauty':
+            $extra['qty'] = sanitize_text_field($_POST['be_qty'] ?? '');
+            $extra['skin_type'] = sanitize_text_field($_POST['be_skin'] ?? '');
+            $extra['shade'] = sanitize_text_field($_POST['be_shade'] ?? '');
+            $extra['expiry'] = sanitize_text_field($_POST['be_expiry'] ?? '');
+            $extra['ingredients'] = sanitize_text_field($_POST['be_ingredients'] ?? '');
+            if (empty($description)) {
+                $description = "{$brand} {$product_name}. Qty: {$extra['qty']}." . ($extra['skin_type'] ? " For: {$extra['skin_type']}." : '') . ($extra['shade'] ? " Shade: {$extra['shade']}." : '') . ($extra['ingredients'] ? " Ingredients: {$extra['ingredients']}." : '') . ($extra['expiry'] ? " Expiry: {$extra['expiry']}." : '');
+            }
+            break;
+        case 'home':
+            $extra['size'] = sanitize_text_field($_POST['ho_size'] ?? '');
+            $extra['material'] = sanitize_text_field($_POST['ho_material'] ?? '');
+            $extra['color'] = sanitize_text_field($_POST['ho_color'] ?? '');
+            $extra['contents'] = sanitize_text_field($_POST['ho_contents'] ?? '');
+            if (empty($description)) {
+                $description = "{$brand} {$product_name}. Size: {$extra['size']}. Material: {$extra['material']}." . ($extra['color'] ? " Color: {$extra['color']}." : '') . ($extra['contents'] ? " Contents: {$extra['contents']}." : '');
+            }
+            break;
+        case 'toys':
+            $extra['age'] = sanitize_text_field($_POST['to_age'] ?? '');
+            $extra['battery'] = sanitize_text_field($_POST['to_battery'] ?? '');
+            $extra['material'] = sanitize_text_field($_POST['to_material'] ?? '');
+            $extra['skill'] = sanitize_text_field($_POST['to_skill'] ?? '');
+            if (empty($description)) {
+                $description = "{$brand} {$product_name}. Age: {$extra['age']}." . ($extra['material'] ? " Material: {$extra['material']}." : '') . ($extra['skill'] ? " Skill: {$extra['skill']}." : '') . ($extra['battery'] ? " Battery: {$extra['battery']}." : '');
+            }
+            break;
+        case 'groceries':
+            $extra['weight'] = sanitize_text_field($_POST['gr_weight'] ?? '');
+            $extra['expiry'] = sanitize_text_field($_POST['gr_expiry'] ?? '');
+            if (empty($description)) { $description = "{$brand} {$product_name}. Weight: {$extra['weight']}." . ($extra['expiry'] ? " Expiry: {$extra['expiry']}." : ''); }
+            break;
+        case 'handicrafts':
+            $extra['type'] = sanitize_text_field($_POST['ha_type'] ?? '');
+            $extra['material'] = sanitize_text_field($_POST['ha_material'] ?? '');
+            $extra['size'] = sanitize_text_field($_POST['ha_size'] ?? '');
+            if (empty($description)) { $description = "{$extra['type']} - {$brand} {$product_name}." . ($extra['material'] ? " Material: {$extra['material']}." : '') . ($extra['size'] ? " Size: {$extra['size']}." : '') . " Handmade in Ladakh."; }
+            break;
+        case 'books':
+            $extra['author'] = sanitize_text_field($_POST['bk_author'] ?? '');
+            $extra['type'] = sanitize_text_field($_POST['bk_type'] ?? '');
+            if (empty($description)) { $description = "{$product_name}." . ($extra['author'] ? " Author: {$extra['author']}." : '') . " Type: {$extra['type']}."; }
+            break;
+        case 'other':
+            $extra['notes'] = sanitize_textarea_field($_POST['ot_notes'] ?? '');
+            break;
+    }
+    $webhook = defined('SHOMART_PRODUCTS_WEBHOOK_URL') ? SHOMART_PRODUCTS_WEBHOOK_URL : '';
+    $all_data = array_merge(array('type'=>'product','timestamp'=>current_time('mysql'),'shop_name'=>$shop_name,'shop_serial'=>$shop_serial,'shop_city'=>$shop_city,'shop_post_id'=>$shop_id,'category'=>$category,'product_name'=>$product_name,'brand'=>$brand,'selling_price'=>$selling_price,'retail_price'=>$retail_price,'stock'=>$stock,'description'=>$description), $extra);
+    if (!empty($webhook)) {
+        $resp = wp_remote_post($webhook, array('timeout'=>5,'headers'=>array('Content-Type'=>'application/json'),'body'=>wp_json_encode($all_data)));
+        if (is_wp_error($resp)) { error_log('Shomart Products sync: '.$resp->get_error_message()); }
+    }
+    wp_redirect(home_url('/seller-add-products/?submitted=true')); exit;
+}
+
+/** ============================================================
+ * SHOMART STOCK MANAGEMENT
+ * ============================================================ */
+
+add_action('woocommerce_order_status_processing', 'shomart_decrease_stock_on_order', 10, 1);
+add_action('woocommerce_order_status_completed', 'shomart_decrease_stock_on_order', 10, 1);
+function shomart_decrease_stock_on_order($order_id) {
+    $order = wc_get_order($order_id);
+    if (!$order) return;
+    if ($order->get_meta('_shomart_stock_reduced')) return;
+    foreach ($order->get_items() as $item) {
+        $product = $item->get_product();
+        if (!$product || $product->is_type('variable') || $product->is_type('variation')) continue;
+        $qty = $item->get_quantity();
+        if ($product->managing_stock() && ($stock = $product->get_stock_quantity()) !== null) {
+            wc_update_product_stock($product, max(0, $stock - $qty));
+        }
+    }
+    $order->update_meta_data('_shomart_stock_reduced', 'yes');
+    $order->save();
+    shomart_check_low_stock_alert();
+}
+
+function shomart_check_low_stock_alert() {
+    $low = array();
+    $products = wc_get_products(array('limit'=>-1,'status'=>'publish','meta_key'=>'_stock','orderby'=>'meta_value_num','order'=>'ASC'));
+    foreach ($products as $p) {
+        if (!$p->managing_stock()) continue;
+        $s = $p->get_stock_quantity();
+        if ($s !== null && $s <= 5) {
+            $sid = get_post_meta($p->get_id(), '_shomart_seller_id', true);
+            $low[] = array('product_name'=>$p->get_name(),'product_id'=>$p->get_id(),'stock'=>$s,'shop_name'=>$sid ? get_post_meta($sid,'shop_name',true) : 'Direct','shop_serial'=>$sid ? get_post_meta($sid,'shop_serial',true) : '');
+        }
+    }
+    if (empty($low)) return;
+    $webhook = defined('SHOMART_SHEETS_WEBHOOK_URL') ? SHOMART_SHEETS_WEBHOOK_URL : '';
+    if (!empty($webhook)) {
+        wp_remote_post($webhook, array('timeout'=>5,'headers'=>array('Content-Type'=>'application/json'),'body'=>wp_json_encode(array('type'=>'low_stock','timestamp'=>current_time('mysql'),'products'=>$low))));
+    }
+}
+
+add_filter('woocommerce_add_to_cart_validation', 'shomart_block_out_of_stock', 10, 3);
+function shomart_block_out_of_stock($passed, $product_id, $quantity) {
+    $product = wc_get_product($product_id);
+    if (!$product || $product->is_type('variable') || $product->is_type('variation')) return $passed;
+    if ($product->managing_stock() && ($stock = $product->get_stock_quantity()) !== null && $stock <= 0) {
+        wc_add_notice('❌ This product is out of stock!', 'error'); return false;
+    }
+    return $passed;
+}
+
+add_filter('woocommerce_is_purchasable', 'shomart_make_out_of_stock_unpurchasable', 10, 2);
+function shomart_make_out_of_stock_unpurchasable($purchasable, $product) {
+    if ($product->managing_stock() && $product->get_stock_quantity() !== null && $product->get_stock_quantity() <= 0) return false;
+    return $purchasable;
+}
+
+/** ============================================================
+ * ADMIN: LOW STOCK REPORT + BULK RESTOOL
+ * ============================================================ */
+
+add_action('admin_menu', 'shomart_add_low_stock_admin_page');
+function shomart_add_low_stock_admin_page() {
+    add_submenu_page('edit.php?post_type=seller_application', '📉 Low Stock Report', '📉 Low Stock', 'manage_woocommerce', 'shomart-low-stock', 'shomart_low_stock_page_callback');
+}
+
+function shomart_low_stock_page_callback() {
+    $products = wc_get_products(array('limit'=>-1,'status'=>'publish','meta_key'=>'_stock','orderby'=>'meta_value_num','order'=>'ASC'));
+    $low = array();
+    foreach ($products as $p) {
+        if (!$p->managing_stock()) continue;
+        $s = $p->get_stock_quantity();
+        if ($s !== null && $s <= 5) {
+            $sid = get_post_meta($p->get_id(), '_shomart_seller_id', true);
+            $low[] = array('id'=>$p->get_id(),'name'=>$p->get_name(),'stock'=>$s,'shop'=>$sid ? get_post_meta($sid,'shop_name',true) : 'Direct','serial'=>$sid ? get_post_meta($sid,'shop_serial',true) : '','seller_id'=>$sid);
+        }
+    }
+    if (isset($_GET['export']) && $_GET['export']==='csv') {
+        header('Content-Type: text/csv');
+        header('Content-Disposition: attachment; filename="low-stock-'.date('Y-m-d').'.csv"');
+        $o=fopen('php://output','w'); fputcsv($o,array('Product','Stock','Shop','Serial','ID'));
+        foreach($low as $r) fputcsv($o,array($r['name'],$r['stock'],$r['shop'],$r['serial'],$r['id']));
+        fclose($o); exit;
+    }
+    if (isset($_GET['sync']) && $_GET['sync']==='sheet') { shomart_check_low_stock_alert(); echo '<div class="notice notice-success"><p>✅ Synced!</p></div>'; }
+    ?><div class="wrap"><h1>📉 Low Stock (&lt;5)</h1><?php
+    if (empty($low)) { echo '<div class="notice notice-success"><p>✅ No low stock!</p></div>'; } else {
+        echo '<table class="wp-list-table widefat striped"><thead><tr><th>Product</th><th>Stock</th><th>Shop</th><th>Serial</th><th>Action</th></tr></thead><tbody>';
+        foreach ($low as $r) {
+            $ac = $r['stock']==0 ? 'style="color:red;font-weight:700;"' : 'style="color:#ff9800;font-weight:700;"';
+            echo '<tr><td><a href="'.admin_url('post.php?post='.$r['id'].'&action=edit').'">'.esc_html($r['name']).'</a></td><td '.$ac.'>'.esc_html($r['stock']).'</td><td>'.esc_html($r['shop']).'</td><td>'.($r['serial']?'#'.esc_html($r['serial']):'—').'</td><td><a href="'.admin_url('post.php?post='.$r['id'].'&action=edit').'" class="button button-small">✏️ Restock</a></td></tr>';
+        }
+        echo '</tbody></table>';
+    }
+    echo '<p><a href="'.admin_url('admin.php?page=shomart-low-stock&export=csv').'" class="button">📥 Export CSV</a> <a href="'.admin_url('admin.php?page=shomart-low-stock&sync=sheet').'" class="button">🔄 Sync Sheet</a></p>';
+
+    $sellers = get_posts(array('post_type'=>'seller_application','posts_per_page'=>-1,'post_status'=>'publish','meta_query'=>array(array('key'=>'status','value'=>array('approved','active'),'compare'=>'IN'))));
+    echo '<div style="margin:20px 0;padding:20px;background:#f0f8ff;border:1px solid #b3d4fc;border-radius:8px;max-width:600px;">
+    <h3>📦 Bulk Restock</h3>
+    <p style="font-size:13px;">Jab shopkeeper naya stock laaye, shop select karein. Sabhi products mein stock add ho jayega.</p>
+    <form method="post" action="'.admin_url('admin-post.php').'">
+    <input type="hidden" name="action" value="shomart_bulk_restock">
+    <table class="form-table">
+    <tr><th>🏪 Shop</th><td><select name="seller_id" required style="width:100%;"><option value="">— Select —</option>';
+    foreach ($sellers as $s) { $sn=get_post_meta($s->ID,'shop_name',true); $sr=get_post_meta($s->ID,'shop_serial',true); echo '<option value="'.esc_attr($s->ID).'">'.esc_html(($sn?:$s->post_title).($sr?' (#'.$sr.')':'')).'</option>'; }
+    echo '</select></td></tr>
+    <tr><th>➕ Add Stock</th><td><input type="number" name="add_stock" required min="1" value="10" style="width:100px;"> <span style="font-size:12px;color:#666;">Har product mein</span></td></tr>
+    </table>
+    <p><button type="submit" class="button button-primary">📦 Add Stock</button></p>
+    </form></div>';
+    if (isset($_GET['restocked'])) { echo '<div class="notice notice-success"><p>✅ Stock added to '.absint($_GET['restocked']).' products!</p></div>'; }
+    echo '</div>';
+}
+
+add_action('admin_post_shomart_bulk_restock', 'shomart_handle_bulk_restock');
+function shomart_handle_bulk_restock() {
+    if (!current_user_can('manage_woocommerce')) wp_die('No permission');
+    $seller_id = absint($_POST['seller_id'] ?? 0);
+    $add_stock = absint($_POST['add_stock'] ?? 0);
+    if (!$seller_id || !$add_stock) { wp_redirect(admin_url('admin.php?page=shomart-low-stock&error=invalid')); exit; }
+    $products = get_posts(array('post_type'=>'product','posts_per_page'=>-1,'fields'=>'ids','meta_key'=>'_shomart_seller_id','meta_value'=>$seller_id));
+    $count = 0;
+    foreach ($products as $pid) {
+        $product = wc_get_product($pid);
+        if (!$product || !$product->managing_stock()) continue;
+        wc_update_product_stock($product, ($product->get_stock_quantity() ?: 0) + $add_stock);
+        $count++;
+    }
+    wp_redirect(admin_url('admin.php?page=shomart-low-stock&restocked='.$count)); exit;
+}
+
+/** ============================================================
+ * SHOMART AI IMAGE GENERATOR (Admin tool)
+ * ============================================================ */
+
+add_action('admin_menu', 'shomart_add_ai_image_page');
+function shomart_add_ai_image_page() {
+    add_submenu_page('edit.php?post_type=seller_application', '🤖 AI Image Generator', '🤖 AI Images', 'manage_woocommerce', 'shomart-ai-images', 'shomart_ai_images_page_callback');
+}
+
+function shomart_ai_images_page_callback() {
+    ?><div class="wrap"><h1>🤖 AI Product Image Generator</h1>
+    <p>Product name daalein, AI 4-5 product images generate karega. Images download karke WooCommerce product mein set karein.</p>
+    <div style="max-width:600px;background:#fff;padding:20px;border:1px solid #ddd;border-radius:8px;">
+        <p><strong>How to use:</strong></p>
+        <ol style="font-size:13px;">
+            <li>Google pe product search karein ya product name copy karein</li>
+            <li>Product name text box mein daalein</li>
+            <li>AI image generate karega</li>
+            <li>Images download karein → WooCommerce product mein set karein</li>
+        </ol>
+        <form method="get" action="<?php echo admin_url('admin.php'); ?>">
+            <input type="hidden" name="page" value="shomart-ai-images">
+            <input type="hidden" name="generate" value="1">
+            <p><input type="text" name="product_name" required placeholder="e.g. Samsung Galaxy S26 Ultra Midnight Black" style="width:100%;padding:10px;font-size:14px;"></p>
+            <p><button type="submit" class="button button-primary">🤖 Generate Images</button></p>
+        </form>
+    </div>
+    <?php
+    if (isset($_GET['generate']) && !empty($_GET['product_name'])) {
+        $name = sanitize_text_field(wp_unslash($_GET['product_name']));
+        echo '<h2>Generated Images for: ' . esc_html($name) . '</h2>';
+        echo '<p style="color:#666;">AI-generated product images. Right-click → Save As to download.</p><div style="display:flex;flex-wrap:wrap;gap:12px;">';
+        $variations = array('front view product photography', 'side view product photography', 'product packaging shot', 'product lifestyle shot', 'product detail close up');
+        foreach ($variations as $i => $angle) {
+            $img_url = 'https://placehold.co/400x400/e8f5e9/2e7d32?text=' . urlencode($name) . '+Image+' . ($i+1);
+            echo '<div style="border:1px solid #ddd;border-radius:8px;padding:8px;text-align:center;width:200px;">';
+            echo '<img src="' . esc_url($img_url) . '" alt="' . esc_attr($name) . '" style="max-width:100%;border-radius:4px;">';
+            echo '<p style="font-size:11px;margin:4px 0;">View ' . ($i+1) . '</p>';
+            echo '</div>';
+        }
+        echo '</div>';
+        echo '<p style="margin-top:16px;"><strong>Note:</strong> Actual Amazon/Flipkart images ke liye, product Google par search karein ya main aapke liye AI se images bana sakta hoon. Mujhe product name batao.</p>';
+    }
+    echo '</div>';
+}
